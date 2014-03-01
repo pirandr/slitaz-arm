@@ -1,0 +1,70 @@
+# SliTaz package receipt.
+
+PACKAGE="python"
+VERSION="2.7.5"
+CATEGORY="development"
+SHORT_DESC="The Python programming language."
+MAINTAINER="pankso@slitaz.org"
+LICENSE="PSL"
+SOURCE="Python"
+TARBALL="$SOURCE-$VERSION.tar.bz2"
+WEB_SITE="http://www.python.org/"
+WGET_URL="http://www.python.org/ftp/python/$VERSION/$TARBALL"
+HOST_ARCH="i486 arm"
+
+DEPENDS="openssl bzlib readline sqlite zlib ncursesw gdbm"
+BUILD_DEPENDS="openssl-dev bzip2-dev readline-dev sqlite-dev zlib-dev \
+ncursesw-dev tcl-dev tk-dev db-dev gdbm-dev"
+SUGGESTED="tcl tk"
+
+# Rules to configure and make the package.
+compile_rules()
+{
+	cd $src
+	# Temporary workaround for FS#22322
+	# See http://bugs.python.org/issue10835 for upstream report
+        # Doesn't seem to be needed anymore. Maybe this is fixed in Python 2.7.5??
+        # Maybe this should only be run depending on version?
+	# sed -i "/progname =/s/python/python${_pybasever}/" Python/pythonrun.c
+	# Enable built-in SQLite3 module to load extensions (fix FS#22122)
+        # I don't think this should be here since it adds an uneccesary dependency for python
+	# sed -i "/SQLITE_OMIT_LOAD_EXTENSION/d" setup.py
+
+	# Following instructions from http://www.trevorbowen.com/2013/10/07/cross-compiling-python-2-7-5-for-embedded-linux/
+
+        # First build some tools for the host system: python and pgen
+        # Might be possible to omit this if python binaries are already available on the host system
+        mkdir hostbuild
+        cd hostbuild
+        ../configure --enable-shared --disable-ipv6 &&
+        make python Parser/pgen
+        cd ..
+        # Patch things up to use the host binaries instead of build binaries
+        wget http://bugs.python.org/file31991/Python-2.7.5-xcompile.patch
+        patch -p1 < Python-2.7.5-xcompile.patch
+        cp hostbuild/python python_for_build
+        cp hostbuild/Parser/pgen Parser/pgen_for_build
+
+        # Now build it for the build system
+	./configure \
+		--enable-shared \
+		--build=$BUILD_SYSTEM \
+		--host=$HOST_SYSTEM \
+                --disable-ipv6 \
+                ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no &&
+	make &&	make DESTDIR=$DESTDIR install
+}
+
+# Rules to gen a SliTaz package suitable for Tazpkg.
+genpkg_rules()
+{
+	python_version=${VERSION:0:3}
+	mkdir -p $fs/usr/include/${PACKAGE}$python_version
+	cp -a $install/usr/bin $fs/usr
+	cp -a $install/usr/lib $fs/usr
+	# needed for mericurial to work now
+	cp -a $install/usr/include/${PACKAGE}$python_version/pyconfig.h \
+		$fs/usr/include/${PACKAGE}$python_version
+	rm -f $fs/usr/bin/*-config
+}
+
