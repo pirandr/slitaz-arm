@@ -1,0 +1,5 @@
+#Solution taken from
+#http://www.metastatic.org/text/libtool.html
+
+sed -i -e "s;libdir='/lib';libdir='/cross/arm/sysroot/lib';" /cross/arm/sysroot/lib/lib*.la
+sed -i -e "s;libdir='/usr/lib';libdir='/cross/arm/sysroot/usr/lib';" /cross/arm/sysroot/usr/lib/lib*.la
