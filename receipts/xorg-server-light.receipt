@@ -1,0 +1,98 @@
+# SliTaz package receipt.
+
+PACKAGE="xorg-server-light"
+VERSION="1.12.4"
+CATEGORY="x-window"
+SHORT_DESC="Xorg core server light version (no dri, gl, and friends)."
+MAINTAINER="pankso@slitaz.org"
+LICENSE="MIT"
+SUGGESTED="xorg-xf86-video-vesa"
+SOURCE="xorg-server"
+TARBALL="$SOURCE-$VERSION.tar.bz2"
+WEB_SITE="http://www.x.org/"
+WGET_URL="http://xorg.freedesktop.org/releases/individual/xserver/$TARBALL"
+PROVIDE="xorg-server"
+HOST_ARCH="i486 arm"
+
+DEPENDS="xorg-xkeyboard-config xorg-libpciaccess xorg-libXxf86vm \
+xorg-libXfont xorg-libXau xorg-base-fonts libgcrypt pixman udev \
+xorg-xf86-input-evdev libgpg-error libgcrypt freetype libxcb bzip2"
+BUILD_DEPENDS="xorg-libxkbfile-dev xorg-libpciaccess-dev xorg-libXxf86vm-dev \
+xorg-libXfont-dev libgpg-error-dev libgcrypt-dev pixman-dev udev-dev perl \
+flex xorg-dev-proto freetype-dev libxcb-dev bzip2-dev"
+
+# Handle arch compilation
+case "$ARCH" in
+	arm)
+		#--disable-xf86vidmode
+		BUILD_DEPENDS="xorg-libxkbfile-dev xorg-libpciaccess-dev pixman-dev \
+xorg-util-macros xorg-libXfont-dev libgcrypt-dev xorg-resourceproto \
+xorg-bigreqsproto xorg-xcmiscproto xorg-renderproto xorg-damageproto \
+xorg-compositeproto xorg-xf86dgaproto  xorg-randrproto xorg-recordproto \
+xorg-videoproto xorg-xtrans libgpg-error-dev libgcrypt-dev freetype-dev \
+libxcb-dev bzip2-dev" 
+		ARCH_ARGS="--disable-config-udev"
+		ARM_LIBS="/cross/$ARCH/sysroot/usr/lib" 
+                export LDFLAGS="-L/cross/arm/sysroot/usr/lib"
+                export CPPFLAGS="-I/cross/arm/sysroot/usr/include"
+		export LIBTOOL=${HOST_SYSTEM}-libtool ;;
+	i?86)
+		ARCH_ARGS="--enable-config-udev" ;;
+esac
+
+# Rules to configure and make the package.
+compile_rules()
+{
+XSERVERCFLAGS_LIBS="-L${ARM_LIBS} -lrt -lpthread -lmd -lgcrypt -lm -lz -lcrypto -lpixman -lxkbfile -lXfont -lfreetype -lXau -lfontenc -lXdmcp" 
+XSERVERLIBS_LIBS="-L${ARM_LIBS} -lrt -lpthread -lmd -lgcrypt -lm -lz -lcrypto -lpixman -lxkbfile -lXfont -lfreetype -lXau -lfontenc -lXdmcp"
+
+	./configure \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--localstatedir=/var \
+		--with-module-dir=/usr/lib/X11/modules \
+		--with-xkb-output=/var/lib/xkb \
+		--with-serverconfig-path=/etc/X11 \
+		--enable-install-setuid \
+		--enable-xorg \
+		--disable-config-dbus \
+		--with-fontrootdir=/usr/share/fonts \
+		--with-os-name="SliTaz GNU/Linux" \
+		--with-builder-addr=$MAINTAINER \
+		--disable-screensaver \
+		--disable-glx \
+		--disable-dri \
+		--disable-dri2 \
+		--disable-xinerama \
+		--disable-libdrm \
+		--disable-xvfb \
+		--disable-xnest \
+		--disable-xfbdev \
+		--disable-xv \
+XSERVERCFLAGS_LIBS="-L${ARM_LIBS} -lrt -lpthread -lgcrypt -lm -lz \
+-lcrypto -lpixman -lxkbfile -lXfont -lfreetype -lXau -lfontenc -lXdmcp" \
+XSERVERLIBS_LIBS="-L${ARM_LIBS} -lrt -lpthread -lgcrypt -lm -lz \
+-lcrypto -lpixman -lxkbfile -lXfont -lfreetype -lXau -lfontenc -lXdmcp" \
+		${CONFIGURE_ARGS} ${ARCH_ARGS} &&
+        sed -i -e 's|-I/usr|-I/cross/arm/sysroot/usr|g' `find . | grep Makefile$` &&
+	make && make install
+}
+
+# Rules to gen a SliTaz package suitable for Tazpkg.
+genpkg_rules()
+{
+	mkdir -p $fs/usr/lib $fs/var $fs/etc/X11/xorg.conf.d
+	cp -a $install/usr/lib/X11 $fs/usr/lib
+	cp -a $install/usr/bin $fs/usr
+	cp -a $install/var/lib $fs/var
+	cp -a $install/etc $fs
+	# Remove static libs and split Xnest
+	rm $fs/usr/lib/X11/*/*.*a
+	rm $fs/usr/lib/X11/*/*/*.*a
+}
+
+# We need /var/tmp rw to let xkbcomp builr XKB definition.
+post_install()
+{
+	chmod 1777 $1/var/tmp
+}
